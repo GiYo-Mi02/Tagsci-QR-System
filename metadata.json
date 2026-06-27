@@ -1,0 +1,8 @@
+{
+  "name": "Taguig Science High School QR Verification System",
+  "description": "QR Code Student ID Verification System for Taguig Science High School entrance security.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

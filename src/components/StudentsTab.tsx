@@ -4,7 +4,7 @@ import { Student } from "../types";
 import { getStudents, deleteStudent, addStudent, uploadIdImage } from "../lib/studentService";
 import { StudentAvatar } from "./StudentAvatar";
 
-export const StudentsTab: React.FC = () => {
+export const StudentsTab: React.FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
@@ -21,8 +21,32 @@ export const StudentsTab: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState(false);
 
-  // Modal ID card viewer state
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
+  const [viewingStudentQrPayload, setViewingStudentQrPayload] = useState<string | null>(null);
+
+  // Fetch signed QR code when a student card is viewed
+  useEffect(() => {
+    if (viewingStudent && (viewingStudent.qr_token || viewingStudent.id)) {
+      setViewingStudentQrPayload(null);
+      const token = viewingStudent.qr_token || viewingStudent.id;
+      fetch(`/api/sign-qr?token=${token}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to sign token");
+          return res.json();
+        })
+        .then((data) => {
+          if (data.payload) {
+            setViewingStudentQrPayload(data.payload);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch signed QR:", err);
+          setViewingStudentQrPayload(null);
+        });
+    } else {
+      setViewingStudentQrPayload(null);
+    }
+  }, [viewingStudent]);
 
   // Modal delete confirmation states
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
@@ -136,22 +160,24 @@ export const StudentsTab: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all shadow-sm cursor-pointer ${
-            showAddForm
-              ? "bg-slate-100 text-slate-600 border border-slate-200"
-              : "bg-[#0B3C26] hover:bg-[#0B3C26]/90 text-[#EAB308] border border-[#0B3C26]"
-          }`}
-          id="toggle-add-form-btn"
-        >
-          <UserPlus className="w-4 h-4" />
-          {showAddForm ? "Hide Enroll Panel" : "Register Student"}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all shadow-sm cursor-pointer ${
+              showAddForm
+                ? "bg-slate-100 text-slate-600 border border-slate-200"
+                : "bg-[#0B3C26] hover:bg-[#0B3C26]/90 text-[#EAB308] border border-[#0B3C26]"
+            }`}
+            id="toggle-add-form-btn"
+          >
+            <UserPlus className="w-4 h-4" />
+            {showAddForm ? "Hide Enroll Panel" : "Register Student"}
+          </button>
+        )}
       </div>
 
       {/* MANUAL STUDENT REGISTRATION FORM */}
-      {showAddForm && (
+      {isAdmin && showAddForm && (
         <div className="bg-white rounded-2xl shadow-xl border border-[#0B3C26]/10 p-6 mb-8 animate-slide-up" id="manual-form-card">
           <div className="border-b border-slate-100 pb-3 mb-5 flex items-center justify-between">
             <h3 className="font-sans font-bold text-sm text-[#0B3C26] uppercase tracking-wide flex items-center gap-1.5">
@@ -389,13 +415,15 @@ export const StudentsTab: React.FC = () => {
                           View ID Pass
                         </button>
                         
-                        <button
-                          onClick={() => setDeletingStudent(student)}
-                          className="p-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-md border border-red-200/50 transition-colors cursor-pointer"
-                          title="Revoke Student Entry"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => setDeletingStudent(student)}
+                            className="p-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-md border border-red-200/50 transition-colors cursor-pointer"
+                            title="Revoke Student Entry"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -511,13 +539,20 @@ export const StudentsTab: React.FC = () => {
                   </div>
                   
                   {/* QR code image for scanner */}
-                  <div className="w-24 h-24 bg-white border-2 border-[#0B3C26] p-1.5 rounded-xl shadow-xs mt-4 relative">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${viewingStudent.lrn}`}
-                      alt="ID Scan QR"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-contain"
-                    />
+                  <div className="w-24 h-24 bg-white border-2 border-[#0B3C26] p-1.5 rounded-xl shadow-xs mt-4 relative flex items-center justify-center">
+                    {viewingStudentQrPayload ? (
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(viewingStudentQrPayload)}`}
+                        alt="ID Scan QR"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="text-[9px] text-[#0B3C26] font-mono text-center flex flex-col items-center justify-center gap-1">
+                        <span className="w-4 h-4 border-2 border-[#0B3C26] border-t-transparent rounded-full animate-spin"></span>
+                        <span>Securing...</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

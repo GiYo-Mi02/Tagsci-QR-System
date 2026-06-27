@@ -39,6 +39,24 @@ export async function getStudentByLrn(lrn: string): Promise<{ found: boolean; st
   }
 }
 
+// Find single student by signed QR payload via Express secure API gateway
+export async function getStudentByQrPayload(payload: string): Promise<{ found: boolean; student?: Student; message?: string }> {
+  const cleanPayload = payload.trim();
+  try {
+    const res = await fetch(`/api/verify-qr?payload=${encodeURIComponent(cleanPayload)}`);
+    const data = await res.json();
+    
+    if (res.ok && data.success) {
+      return { found: true, student: data.student };
+    } else {
+      return { found: false, message: data.message || "Failed to verify student QR token." };
+    }
+  } catch (err: any) {
+    console.error("getStudentByQrPayload error:", err);
+    return { found: false, message: err.message || "Express server connection error." };
+  }
+}
+
 // Import/upsert bulk student roster
 export async function importStudents(studentList: Omit<Student, "id" | "imported_at">[]): Promise<{ success: boolean; added: number; updated: number; total: number }> {
   try {

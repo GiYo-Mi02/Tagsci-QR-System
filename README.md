@@ -26,11 +26,17 @@ CREATE TABLE students (
   section text NOT NULL,
   grade_level text NOT NULL,
   id_image_url text DEFAULT '',
+  qr_token uuid DEFAULT gen_random_uuid() UNIQUE NOT NULL,
   imported_at timestamp WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- MIGRATION FOR EXISTING TABLES:
+-- If your table already exists and you want to upgrade:
+-- ALTER TABLE students ADD COLUMN IF NOT EXISTS qr_token uuid DEFAULT gen_random_uuid() UNIQUE NOT NULL;
+
 -- 2. Fast LRN lookup index
 CREATE UNIQUE INDEX idx_students_lrn ON students(lrn);
+CREATE UNIQUE INDEX idx_students_qr_token ON students(qr_token);
 
 -- 3. Row Level Security policies
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;

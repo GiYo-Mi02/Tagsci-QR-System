@@ -3,7 +3,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { motion, AnimatePresence } from "motion/react";
 import { Camera, Search, Play, Pause, AlertTriangle, ShieldCheck } from "lucide-react";
 import { Student } from "../types";
-import { getStudentByLrn } from "../lib/studentService";
+import { getStudentByLrn, getStudentByQrPayload } from "../lib/studentService";
 import { StudentAvatar } from "./StudentAvatar";
 
 export const ScanTab: React.FC = () => {
@@ -14,6 +14,7 @@ export const ScanTab: React.FC = () => {
     status: "idle" | "success" | "not_found";
     student?: Student;
     lrnAttempted?: string;
+    message?: string;
   }>({ status: "idle" });
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
@@ -30,23 +31,39 @@ export const ScanTab: React.FC = () => {
   }, []);
 
   // Handle student lookup
-  const handleVerifyLrn = async (lrn: string) => {
+  const handleVerifyLrn = async (payload: string, isManual = false) => {
     // Stop scanner briefly on detection to avoid double scans
     stopScanner();
 
-    const result = await getStudentByLrn(lrn);
+    let result;
+    const isSignedPayload = payload.includes(".");
+
+    if (isSignedPayload) {
+      result = await getStudentByQrPayload(payload);
+    } else if (isManual || localStorage.getItem("legacy_qr_mode") === "true") {
+      // Manual guard entry OR Legacy Mode allows raw LRN lookups
+      result = await getStudentByLrn(payload);
+    } else {
+      // Camera scanned a plain LRN QR code! Reject it.
+      result = {
+        found: false,
+        message: "Plain (unsigned) QR codes are disabled for gate entry security. Please present your officially signed school ID."
+      };
+    }
+
     if (result.found && result.student) {
       setScannedResult({
         status: "success",
         student: result.student,
-        lrnAttempted: lrn
+        lrnAttempted: result.student.lrn
       });
       // Play high pitch beep tone (simulated via Web Audio API)
       playBeep(2000, 0.15);
     } else {
       setScannedResult({
         status: "not_found",
-        lrnAttempted: lrn
+        lrnAttempted: isSignedPayload ? "Signed Token" : payload,
+        message: result.message
       });
       // Play low buzz tone
       playBeep(220, 0.35);
@@ -105,7 +122,7 @@ export const ScanTab: React.FC = () => {
         (decodedText) => {
           // Success callback
           if (decodedText) {
-            handleVerifyLrn(decodedText);
+            handleVerifyLrn(decodedText, false);
           }
         },
         () => {
@@ -137,7 +154,7 @@ export const ScanTab: React.FC = () => {
   const handleManualSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!lrnInput.trim()) return;
-    handleVerifyLrn(lrnInput.trim());
+    handleVerifyLrn(lrnInput.trim(), true);
   };
 
   return (
@@ -408,11 +425,13 @@ export const ScanTab: React.FC = () => {
                   <div className="flex-1 flex flex-col justify-center gap-4 w-full text-center md:text-left">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Status Notice</label>
-                      <p className="text-xl md:text-2xl font-extrabold text-red-600 tracking-tight">Unregistered Student LRN</p>
+                      <p className="text-xl md:text-2xl font-extrabold text-red-600 tracking-tight">
+                        {scannedResult.message?.includes("Plain") || scannedResult.message?.includes("signature") ? "Security Denied" : "Unregistered Student"}
+                      </p>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Scanned LRN Payload</label>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Scanned QR Payload / LRN</label>
                       <p className="text-2xl font-mono font-bold text-slate-800 tracking-wider">
                         {scannedResult.lrnAttempted}
                       </p>
@@ -421,7 +440,7 @@ export const ScanTab: React.FC = () => {
                     <div className="p-4 bg-red-50 border border-red-100 rounded-xl space-y-1 text-left">
                       <label className="text-[10px] font-bold text-red-600/75 uppercase tracking-widest block">System Warning</label>
                       <p className="text-xs text-red-800 leading-relaxed">
-                        This credential does not match any student record in the official Taguig Science High School enrollment registry. Entry is strictly denied.
+                        {scannedResult.message || "This credential does not match any student record in the official Taguig Science High School enrollment registry. Entry is strictly denied."}
                       </p>
                     </div>
                   </div>

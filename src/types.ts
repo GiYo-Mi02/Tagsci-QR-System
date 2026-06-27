@@ -6,6 +6,7 @@ export interface Student {
   grade_level: string;
   id_image_url?: string;
   imported_at?: string;
+  qr_token?: string;
 }
 
 export interface VerificationLog {

@@ -184,3 +184,45 @@ export async function uploadIdImage(lrn: string, file: File): Promise<string | n
     return null;
   }
 }
+
+// Fetch system settings: Legacy QR mode
+export async function getLegacyQrMode(): Promise<{ legacyMode: boolean; notInitialized: boolean }> {
+  try {
+    const res = await fetch("/api/settings/legacy-mode");
+    if (!res.ok) throw new Error("Failed to fetch legacy mode setting");
+    const data = await res.json();
+    return {
+      legacyMode: data.legacyMode === true,
+      notInitialized: data.notInitialized === true
+    };
+  } catch (err) {
+    console.error("getLegacyQrMode error:", err);
+    return { legacyMode: false, notInitialized: false };
+  }
+}
+
+// Update system settings: Legacy QR mode (Requires admin password)
+export async function setLegacyQrMode(enabled: boolean, adminPassword?: string): Promise<{ success: boolean; error?: string; notInitialized?: boolean }> {
+  try {
+    const res = await fetch("/api/settings/legacy-mode", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Password": adminPassword || ""
+      },
+      body: JSON.stringify({ legacyMode: enabled })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data.error || "Failed to update legacy mode setting",
+        notInitialized: data.notInitialized === true
+      };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error("setLegacyQrMode error:", err);
+    return { success: false, error: err.message || "Network connection error." };
+  }
+}

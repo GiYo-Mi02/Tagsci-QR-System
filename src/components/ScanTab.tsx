@@ -3,7 +3,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { motion, AnimatePresence } from "motion/react";
 import { Camera, Search, Play, Pause, AlertTriangle, ShieldCheck } from "lucide-react";
 import { Student } from "../types";
-import { getStudentByLrn, getStudentByQrPayload } from "../lib/studentService";
+import { getStudentByLrn, getStudentByQrPayload, getLegacyQrMode } from "../lib/studentService";
 import { StudentAvatar } from "./StudentAvatar";
 
 export const ScanTab: React.FC = () => {
@@ -17,11 +17,23 @@ export const ScanTab: React.FC = () => {
     message?: string;
   }>({ status: "idle" });
 
+  const [legacyMode, setLegacyMode] = useState<boolean>(() => {
+    return localStorage.getItem("legacy_qr_mode") === "true";
+  });
+
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const scannerId = "tshs-qr-reader";
   const autoResumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Fetch system settings for Legacy QR mode on mount
+    getLegacyQrMode().then(({ legacyMode: enabled }) => {
+      setLegacyMode(enabled);
+      localStorage.setItem("legacy_qr_mode", String(enabled));
+    }).catch((err) => {
+      console.error("Failed to load legacy QR mode on mount:", err);
+    });
+
     return () => {
       stopScanner();
       if (autoResumeTimeoutRef.current) {
@@ -40,7 +52,7 @@ export const ScanTab: React.FC = () => {
 
     if (isSignedPayload) {
       result = await getStudentByQrPayload(payload);
-    } else if (isManual || localStorage.getItem("legacy_qr_mode") === "true") {
+    } else if (isManual || legacyMode) {
       // Manual guard entry OR Legacy Mode allows raw LRN lookups
       result = await getStudentByLrn(payload);
     } else {
@@ -170,9 +182,17 @@ export const ScanTab: React.FC = () => {
               <span className="w-2.5 h-2.5 rounded-full bg-[#EAB308]"></span>
               LIVE SCANNER FEED
             </h2>
-            <span className="text-[10px] bg-red-100 text-red-600 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest animate-pulse">
-              {scanning ? "REC" : "STANDBY"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] bg-red-100 text-red-600 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest animate-pulse">
+                {scanning ? "REC" : "STANDBY"}
+              </span>
+              {legacyMode && (
+                <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 uppercase tracking-wider">
+                  <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                  Legacy QR Active
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Camera Scan Display */}

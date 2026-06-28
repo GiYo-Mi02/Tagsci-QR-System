@@ -115,6 +115,59 @@ app.get("/api/verify-qr", async (req, res) => {
   }
 });
 
+// Get current Legacy QR Transition Mode status
+app.get("/api/settings/legacy-mode", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "legacy_qr_mode")
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === "PGRST205") {
+        return res.json({ legacyMode: false, notInitialized: true });
+      }
+      throw error;
+    }
+    const legacyMode = data ? data.value === "true" : false;
+    return res.json({ legacyMode, notInitialized: false });
+  } catch (err: any) {
+    console.error("Error fetching legacy mode settings:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch setting" });
+  }
+});
+
+// Update Legacy QR Transition Mode status (Admin only)
+app.post("/api/settings/legacy-mode", async (req, res) => {
+  const adminPassword = req.headers["x-admin-password"] || req.body.adminPassword;
+  if (adminPassword !== "Kolokoy0206!") {
+    return res.status(403).json({ error: "Access Denied: Only authenticated administrators can manipulate settings." });
+  }
+
+  const { legacyMode } = req.body;
+  if (typeof legacyMode !== "boolean") {
+    return res.status(400).json({ error: "Invalid payload: legacyMode must be a boolean." });
+  }
+
+  try {
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert({ key: "legacy_qr_mode", value: String(legacyMode) });
+
+    if (error) {
+      if (error.code === "PGRST205") {
+        return res.status(400).json({ error: "Settings table not initialized in database. Run SQL setup script first.", notInitialized: true });
+      }
+      throw error;
+    }
+    return res.json({ success: true, legacyMode });
+  } catch (err: any) {
+    console.error("Error updating legacy mode setting:", err);
+    return res.status(500).json({ error: err.message || "Failed to update setting" });
+  }
+});
+
 // Vite Middleware for development and production hosting
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

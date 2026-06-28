@@ -165,6 +165,7 @@ export default function App() {
                 onClick={() => {
                   setIsAdmin(false);
                   localStorage.removeItem("admin_session");
+                  localStorage.removeItem("admin_password");
                   setActiveTab("scan");
                 }}
                 className="flex items-center gap-1.5 px-4 py-2 border border-red-200 hover:bg-red-600 hover:text-white text-red-600 font-sans text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
@@ -246,6 +247,7 @@ export default function App() {
                 if (email.trim() === "ggiojoshua2006@gmail.com" && password === "Kolokoy0206!") {
                   setIsAdmin(true);
                   localStorage.setItem("admin_session", "true");
+                  localStorage.setItem("admin_password", password);
                   setShowLoginModal(false);
                   setLoginError(null);
                 } else {
